@@ -39,22 +39,24 @@ export function onClickOutside(
 
   let fallback: number
 
+  const checkIgnore  = (event: PointerEvent) => {
+    const composedPath = event.composedPath()
+    return ignore && ignore.length > 0 && ignore.some((target) => {
+      const el = unrefElement(target)
+      return el && (event.target === el || composedPath.includes(el))
+    })
+  }
+
+  const checkShouldListen = (event: PointerEvent) => {
+    const el = unrefElement(target)
+    return !!el && el !== event.target && !event.composedPath().includes(el) && !checkIgnore(event)
+  }
+
   const listener = (event: PointerEvent) => {
     window.clearTimeout(fallback)
 
-    const el = unrefElement(target)
-    const composedPath = event.composedPath()
-
-    if (!el || el === event.target || composedPath.includes(el) || !shouldListen.value)
+    if (!shouldListen.value || !checkShouldListen(event))
       return
-
-    if (ignore && ignore.length > 0) {
-      if (ignore.some((target) => {
-        const el = unrefElement(target)
-        return el && (event.target === el || composedPath.includes(el))
-      }))
-        return
-    }
 
     handler(event)
   }
@@ -62,8 +64,7 @@ export function onClickOutside(
   const cleanup = [
     useEventListener(window, 'click', listener, { passive: true, capture }),
     useEventListener(window, 'pointerdown', (e) => {
-      const el = unrefElement(target)
-      shouldListen.value = !!el && !e.composedPath().includes(el)
+      shouldListen.value = checkShouldListen(e)
     }, { passive: true }),
     useEventListener(window, 'pointerup', (e) => {
       fallback = window.setTimeout(() => listener(e), 50)
